@@ -17,10 +17,6 @@ const habitRoutes = require('./routes/habitRoutes');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
-
 // ============================================
 // SECURITY MIDDLEWARE
 // ============================================
@@ -66,10 +62,10 @@ if (process.env.NODE_ENV !== 'production') {
 // DATABASE CONNECTION
 // ============================================
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/habits';
+const MONGODB_URI = process.env.MONGODB_URI;
 
 mongoose
-    .connect(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+    .connect(MONGODB_URI)
     .then(() => {
         console.log('✅ MongoDB connected successfully');
         console.log(`📊 Database: ${mongoose.connection.name}`);
@@ -92,7 +88,6 @@ app.get('/', (req, res) => {
         endpoints: {
             habits: '/habits (GET, POST, PUT, DELETE) - Requires Firebase token',
         },
-        documentation: 'See README.md for API documentation',
     });
 });
 
@@ -105,7 +100,7 @@ app.get('/api/status', (req, res) => {
     });
 });
 
-// Habit routes (protected with Firebase auth middleware inside routes)
+// Habit routes
 app.use('/habits', habitRoutes);
 
 // ============================================
@@ -146,7 +141,7 @@ const server = app.listen(PORT, () => {
 ║                                            ║
 ║   Port:        ${PORT.toString().padEnd(30)}║
 ║   Environment: ${(process.env.NODE_ENV || 'development').padEnd(30)}║
-║   MongoDB:     ${mongoose.connection.readyState === 1 ? 'Connected ✅' : 'Pending...'}              ║
+║   MongoDB:     ${mongoose.connection.readyState === 1 ? 'Connected ✅' : 'Pending...'}║
 ║                                            ║
 ║   🔐 Firebase Auth: Enabled                ║
 ║   🛡️  Security:      Helmet + Rate Limit   ║
@@ -162,12 +157,10 @@ const gracefulShutdown = async (signal) => {
     console.log(`\n${signal} received. Shutting down gracefully...`);
 
     try {
-        // Close HTTP server
         server.close(() => {
             console.log('✅ HTTP server closed');
         });
 
-        // Close MongoDB connection
         await mongoose.connection.close();
         console.log('✅ MongoDB connection closed');
 
@@ -177,7 +170,6 @@ const gracefulShutdown = async (signal) => {
         process.exit(1);
     }
 
-    // Force shutdown after 10 seconds just in case
     setTimeout(() => {
         console.error('⚠️  Forced shutdown after timeout');
         process.exit(1);
