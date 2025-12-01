@@ -1,59 +1,41 @@
-const express = require("express");
-const cors = require("cors");
+// ============================================
+// BACKEND - Node.js + Express + MongoDB + Firebase Auth
+// Habits Tracker API - Secure & Production Ready
+// ============================================
+
+require('dotenv').config();
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+
+// Import routes
+const habitRoutes = require('./routes/habitRoutes');
+
+// Initialize Express
 const app = express();
-
-app.use(express.json());
-
-// ============================
-// 🔥 CORS FIX — 100% compatible Render
-// ============================
-app.use(cors({
-    origin: "*",  // autorise toutes les origines (Flutter Web, mobile, etc.)
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: false, // PAS de cookies → doit rester false
-    optionsSuccessStatus: 200
-}));
-
-// 🔥 Handler global OPTIONS obligatoire sur Render
-app.options("*", (req, res) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    res.sendStatus(200);
-});
-
-// ============================
-// Tes routes ici
-// ============================
-const habitsRoutes = require("./routes/habits");
-app.use("/habits", habitsRoutes);
-
-// ============================
-// Render port binding
-// ============================
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-});
-
 
 // ============================================
 // SECURITY MIDDLEWARE
 // ============================================
 
+// Helmet - Sets various HTTP headers for security
 app.use(helmet());
 
+// CORS - Configure Cross-Origin Resource Sharing
 app.use(
     cors({
-        origin: process.env.CORS_ORIGIN || '*',
+        origin: process.env.CORS_ORIGIN || '*', // In production, set specific origins
         credentials: true,
     })
 );
 
+// Rate Limiting - Prevent abuse
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 100,
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
     message: {
         success: false,
         error: 'Too many requests',
@@ -69,9 +51,11 @@ app.use(limiter);
 // GENERAL MIDDLEWARE
 // ============================================
 
+// Body parser
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Request logging (development)
 if (process.env.NODE_ENV !== 'production') {
     app.use((req, res, next) => {
         console.log(`${req.method} ${req.path} - ${new Date().toISOString()}`);
@@ -83,7 +67,7 @@ if (process.env.NODE_ENV !== 'production') {
 // DATABASE CONNECTION
 // ============================================
 
-const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/habits';
 
 mongoose
     .connect(MONGODB_URI)
@@ -100,6 +84,7 @@ mongoose
 // ROUTES
 // ============================================
 
+// Health check route (public)
 app.get('/', (req, res) => {
     res.json({
         success: true,
@@ -109,9 +94,11 @@ app.get('/', (req, res) => {
         endpoints: {
             habits: '/habits (GET, POST, PUT, DELETE) - Requires Firebase token',
         },
+        documentation: 'See README.md for API documentation',
     });
 });
 
+// API status route (public)
 app.get('/api/status', (req, res) => {
     res.json({
         success: true,
@@ -121,13 +108,14 @@ app.get('/api/status', (req, res) => {
     });
 });
 
-// Habit routes
+// Habit routes (protected with Firebase auth)
 app.use('/habits', habitRoutes);
 
 // ============================================
 // ERROR HANDLING
 // ============================================
 
+// 404 - Route not found
 app.use((req, res) => {
     res.status(404).json({
         success: false,
@@ -136,9 +124,11 @@ app.use((req, res) => {
     });
 });
 
+// Global error handler
 app.use((err, req, res, next) => {
     console.error('❌ Unhandled error:', err);
 
+    // Don't leak error details in production
     const message =
         process.env.NODE_ENV === 'production'
             ? 'An unexpected error occurred'
@@ -162,12 +152,12 @@ const server = app.listen(PORT, () => {
 ║                                            ║
 ║   Port:        ${PORT.toString().padEnd(30)}║
 ║   Environment: ${(process.env.NODE_ENV || 'development').padEnd(30)}║
-║   MongoDB:     ${mongoose.connection.readyState === 1 ? 'Connected ✅' : 'Pending...'}║
+║   MongoDB:     ${mongoose.connection.readyState === 1 ? 'Connected ✅' : 'Pending...'}              ║
 ║                                            ║
 ║   🔐 Firebase Auth: Enabled                ║
 ║   🛡️  Security:      Helmet + Rate Limit   ║
 ╚════════════════════════════════════════════╝
-`);
+  `);
 });
 
 // ============================================
@@ -177,20 +167,18 @@ const server = app.listen(PORT, () => {
 const gracefulShutdown = async (signal) => {
     console.log(`\n${signal} received. Shutting down gracefully...`);
 
-    try {
-        server.close(() => {
-            console.log('✅ HTTP server closed');
+    // Close server
+    server.close(() => {
+        console.log('✅ HTTP server closed');
+
+        // Close database connection
+        mongoose.connection.close(false, () => {
+            console.log('✅ MongoDB connection closed');
+            process.exit(0);
         });
+    });
 
-        await mongoose.connection.close();
-        console.log('✅ MongoDB connection closed');
-
-        process.exit(0);
-    } catch (err) {
-        console.error('❌ Error during shutdown:', err);
-        process.exit(1);
-    }
-
+    // Force shutdown after 10 seconds
     setTimeout(() => {
         console.error('⚠️  Forced shutdown after timeout');
         process.exit(1);

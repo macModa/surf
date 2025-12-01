@@ -5,6 +5,8 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const admin = require('./firebase');
+const verifyFirebaseToken = require('./middleware/auth');
 require('dotenv').config();
 
 const app = express();
@@ -17,10 +19,14 @@ app.use(helmet());
 
 // CORS configuration
 app.use(cors({
-    origin: '*', // En production, spécifier les domaines autorisés
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    origin: true, // Allow all origins for now, configure properly for production
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
 }));
+
+// Handle OPTIONS preflight requests
+app.options('*', cors());
 
 // Rate limiting
 const limiter = rateLimit({
@@ -242,7 +248,7 @@ app.put('/api/users/:id/points', async (req, res) => {
 // ============ ROUTES HABITUDES ============
 
 // ⭐ Créer une habitude (Compatible Flutter format)
-app.post('/api/habitudes', async (req, res) => {
+app.post('/api/habitudes', verifyFirebaseToken, async (req, res) => {
     try {
         console.log('📥 Creating habit:', req.body);
 
@@ -274,11 +280,13 @@ app.post('/api/habitudes', async (req, res) => {
 });
 
 // ⭐ Obtenir toutes les habitudes d'un utilisateur
-app.get('/api/habitudes/user/:userId', async (req, res) => {
+app.get('/api/habitudes/user/:userId', verifyFirebaseToken, async (req, res) => {
     try {
-        console.log('📥 Fetching habits for user:', req.params.userId);
+        // Use authenticated userId instead of params for security
+        const userId = req.userId;
+        console.log('📥 Fetching habits for user:', userId);
 
-        const habitudes = await Habitude.find({ userId: req.params.userId });
+        const habitudes = await Habitude.find({ userId: userId });
 
         const habituresJSON = habitudes.map(h => h.toJSON());
         console.log(`✅ Found ${habituresJSON.length} habits`);
@@ -291,10 +299,11 @@ app.get('/api/habitudes/user/:userId', async (req, res) => {
 });
 
 // Modifier une habitude
-app.put('/api/habitudes/:id', async (req, res) => {
+app.put('/api/habitudes/:id', verifyFirebaseToken, async (req, res) => {
     try {
-        const habitude = await Habitude.findByIdAndUpdate(
-            req.params.id,
+        const userId = req.userId;
+        const habitude = await Habitude.findOneAndUpdate(
+            { _id: req.params.id, userId: userId }, // Only update if habit belongs to user
             req.body,
             { new: true }
         );
@@ -309,11 +318,12 @@ app.put('/api/habitudes/:id', async (req, res) => {
 });
 
 // ⭐ Supprimer une habitude
-app.delete('/api/habitudes/:id', async (req, res) => {
+app.delete('/api/habitudes/:id', verifyFirebaseToken, async (req, res) => {
     try {
-        console.log('🗑️ Deleting habit:', req.params.id);
+        const userId = req.userId;
+        console.log('🗑️ Deleting habit:', req.params.id, 'for user:', userId);
 
-        const habitude = await Habitude.findByIdAndDelete(req.params.id);
+        const habitude = await Habitude.findOneAndDelete({ _id: req.params.id, userId: userId }); // Only delete if habit belongs to user
         if (!habitude) {
             return res.status(404).json({ error: 'Habitude non trouvée' });
         }
