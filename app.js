@@ -1,21 +1,42 @@
-// ============================================
-// BACKEND - Node.js + Express + MongoDB + Firebase Auth
-// Habits Tracker API - Secure & Production Ready
-// ============================================
-
-require('dotenv').config();
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-
-// Import routes
-const habitRoutes = require('./routes/habitRoutes');
-
-// Initialize Express
+const express = require("express");
+const cors = require("cors");
 const app = express();
+
+app.use(express.json());
+
+// ============================
+// 🔥 CORS FIX — 100% compatible Render
+// ============================
+app.use(cors({
+    origin: "*",  // autorise toutes les origines (Flutter Web, mobile, etc.)
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: false, // PAS de cookies → doit rester false
+    optionsSuccessStatus: 200
+}));
+
+// 🔥 Handler global OPTIONS obligatoire sur Render
+app.options("*", (req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.sendStatus(200);
+});
+
+// ============================
+// Tes routes ici
+// ============================
+const habitsRoutes = require("./routes/habits");
+app.use("/habits", habitsRoutes);
+
+// ============================
+// Render port binding
+// ============================
 const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+});
+
 
 // ============================================
 // SECURITY MIDDLEWARE
