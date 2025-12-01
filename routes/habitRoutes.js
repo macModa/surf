@@ -1,3 +1,19 @@
+app.use(cors({
+    origin: [
+        "http://localhost:64134",  // Flutter Web debug
+        "http://localhost:3000",
+        "http://127.0.0.1:64134",
+        "https://server-6tf0.onrender.com", // frontend hébergé
+        "*" 
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+    preflightContinue: false,
+    optionsSuccessStatus: 200
+}));
+
+app.options("*", cors());
 // ============================================
 // Habit Routes - Secure CRUD Operations
 // All routes are protected with Firebase authentication
